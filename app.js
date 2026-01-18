@@ -40,6 +40,7 @@ const elements = {
   zendeskSubdomain: document.getElementById('zendesk-subdomain'),
   zendeskEmail: document.getElementById('zendesk-email'),
   zendeskToken: document.getElementById('zendesk-token'),
+  timespan: document.getElementById('timespan'),
   llmEndpoint: document.getElementById('llm-endpoint'),
   llmApiKey: document.getElementById('llm-api-key'),
   llmModel: document.getElementById('llm-model'),
@@ -131,6 +132,7 @@ function loadConfig() {
     elements.zendeskSubdomain.value = config.zendeskSubdomain || '';
     elements.zendeskEmail.value = config.zendeskEmail || '';
     elements.zendeskToken.value = config.zendeskToken || '';
+    elements.timespan.value = config.timespan || '28';
     elements.llmEndpoint.value = config.llmEndpoint || '';
     elements.llmApiKey.value = config.llmApiKey || '';
     elements.llmModel.value = config.llmModel || '';
@@ -142,6 +144,7 @@ function saveConfig() {
     zendeskSubdomain: elements.zendeskSubdomain.value.trim(),
     zendeskEmail: elements.zendeskEmail.value.trim(),
     zendeskToken: elements.zendeskToken.value.trim(),
+    timespan: elements.timespan.value,
     llmEndpoint: elements.llmEndpoint.value.trim(),
     llmApiKey: elements.llmApiKey.value.trim(),
     llmModel: elements.llmModel.value.trim()
@@ -198,10 +201,11 @@ async function fetchTickets() {
   showStatus(elements.actionStatus, '<span class="loading"></span>Fetching tickets...', 'info');
   
   try {
-    // Calculate date 4 weeks ago
-    const fourWeeksAgo = new Date();
-    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-    const dateFilter = fourWeeksAgo.toISOString().split('T')[0];
+    // Calculate date based on configured timespan
+    const days = parseInt(config.timespan) || 28;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const dateFilter = startDate.toISOString().split('T')[0];
     
     // Build API URL
     const baseUrl = getZendeskBaseUrl();

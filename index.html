@@ -14,7 +14,11 @@
 
     <!-- Configuration Panel -->
     <section id="config-section" class="card">
-      <h2>Configuration</h2>
+      <h2 class="collapsible" data-target="config-content">
+        Configuration
+        <span class="toggle-icon">▼</span>
+      </h2>
+      <div id="config-content" class="collapsible-content">
       <div class="config-grid">
         <div class="config-group">
           <h3>Zendesk API</h3>
@@ -27,6 +31,17 @@
           
           <label for="zendesk-token">API Token</label>
           <input type="password" id="zendesk-token" placeholder="Your Zendesk API token">
+          
+          <label for="timespan">Fetch tickets from last</label>
+          <select id="timespan">
+            <option value="7">1 week</option>
+            <option value="14">2 weeks</option>
+            <option value="28" selected>4 weeks</option>
+            <option value="60">2 months</option>
+            <option value="90">3 months</option>
+            <option value="180">6 months</option>
+            <option value="365">1 year</option>
+          </select>
         </div>
         
         <div class="config-group">
@@ -45,6 +60,7 @@
       <div class="config-actions">
         <button id="save-config-btn" class="btn btn-primary">Save Configuration</button>
         <span id="config-status" class="status-message"></span>
+      </div>
       </div>
     </section>
 
