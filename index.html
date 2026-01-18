@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zendesk Ticket Analyzer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Zendesk Ticket Analyzer</h1>
+    </header>
+
+    <!-- Configuration Panel -->
+    <section id="config-section" class="card">
+      <h2>Configuration</h2>
+      <div class="config-grid">
+        <div class="config-group">
+          <h3>Zendesk API</h3>
+          <label for="zendesk-subdomain">Subdomain or URL</label>
+          <input type="text" id="zendesk-subdomain" placeholder="Leave empty for mock server, or enter subdomain">
+          <p class="hint">Leave empty when using mock server, or enter subdomain (e.g., yourcompany)</p>
+          
+          <label for="zendesk-email">Email</label>
+          <input type="email" id="zendesk-email" placeholder="user@example.com">
+          
+          <label for="zendesk-token">API Token</label>
+          <input type="password" id="zendesk-token" placeholder="Your Zendesk API token">
+        </div>
+        
+        <div class="config-group">
+          <h3>LLM API</h3>
+          <label for="llm-endpoint">Endpoint URL</label>
+          <input type="url" id="llm-endpoint" placeholder="https://your-llm-api.com/v1/chat/completions">
+          
+          <label for="llm-api-key">API Key</label>
+          <input type="password" id="llm-api-key" placeholder="Your LLM API key">
+          
+          <label for="llm-model">Model (optional)</label>
+          <input type="text" id="llm-model" placeholder="e.g., gpt-4, mistral-large">
+        </div>
+      </div>
+      
+      <div class="config-actions">
+        <button id="save-config-btn" class="btn btn-primary">Save Configuration</button>
+        <span id="config-status" class="status-message"></span>
+      </div>
+    </section>
+
+    <!-- Prompt Configuration -->
+    <section id="prompt-section" class="card collapsed">
+      <h2 class="collapsible" data-target="prompt-content">
+        Prompt Configuration
+        <span class="toggle-icon">▼</span>
+      </h2>
+      <div id="prompt-content" class="collapsible-content">
+        <label for="classification-prompt">Classification Prompt</label>
+        <textarea id="classification-prompt" rows="8" placeholder="Enter your classification prompt..."></textarea>
+        <p class="hint">Use {{ticket_subject}}, {{ticket_description}}, and {{ticket_comments}} as placeholders.</p>
+        <button id="reset-prompt-btn" class="btn btn-secondary">Reset to Default</button>
+      </div>
+    </section>
+
+    <!-- Actions -->
+    <section id="actions-section" class="card">
+      <h2>Actions</h2>
+      <div class="action-buttons">
+        <button id="fetch-tickets-btn" class="btn btn-primary">Fetch Tickets</button>
+        <button id="classify-btn" class="btn btn-primary" disabled>Classify All Tickets</button>
+        <button id="clear-data-btn" class="btn btn-danger">Clear Stored Data</button>
+      </div>
+      <div id="action-status" class="status-message"></div>
+      <div id="progress-container" class="progress-container hidden">
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <span id="progress-text">0%</span>
+      </div>
+    </section>
+
+    <!-- Analytics Dashboard -->
+    <section id="analytics-section" class="card hidden">
+      <h2>Analytics</h2>
+      <div class="analytics-grid">
+        <div class="analytics-card">
+          <h3>Classification Distribution</h3>
+          <div id="classification-chart" class="chart-container"></div>
+          <div id="classification-legend" class="chart-legend"></div>
+        </div>
+        <div class="analytics-card">
+          <h3>Topics</h3>
+          <div id="topics-list" class="topics-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tickets List -->
+    <section id="tickets-section" class="card hidden">
+      <h2>Tickets <span id="tickets-count" class="badge"></span></h2>
+      <div class="filter-bar">
+        <input type="text" id="search-input" placeholder="Search tickets...">
+        <select id="classification-filter">
+          <option value="">All Classifications</option>
+          <option value="positive">Positive</option>
+          <option value="neutral">Neutral</option>
+          <option value="negative">Negative</option>
+        </select>
+        <select id="topic-filter">
+          <option value="">All Topics</option>
+        </select>
+      </div>
+      <div id="tickets-list" class="tickets-list"></div>
+    </section>
+
+    <!-- Ticket Detail Modal -->
+    <div id="ticket-modal" class="modal hidden">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <div id="ticket-detail"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
