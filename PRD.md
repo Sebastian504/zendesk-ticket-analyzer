@@ -148,7 +148,7 @@ Supports both Zendesk authentication methods:
 
 ### 8.4 Running the Mock Server
 ```bash
-cd mock-server
+cd server
 npm install
 npm start
 # Server runs on http://localhost:3001

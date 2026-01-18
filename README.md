@@ -16,7 +16,7 @@ A browser-based application to fetch, store, and analyze Zendesk tickets using l
 
 1. Start the mock Zendesk server:
    ```bash
-   cd mock-server
+   cd server
    npm install
    npm start
    ```
@@ -181,7 +181,7 @@ zendesk-tickets-analyzer/
 ├── app.js              # Application logic
 ├── README.md           # This file
 ├── PRD.md              # Product requirements document
-└── mock-server/        # Mock Zendesk API server
+└── server/             # Local development server
     ├── server.js       # Express server
     ├── test.js         # Server tests
     ├── package.json    # Dependencies

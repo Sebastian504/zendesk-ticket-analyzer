@@ -1,5 +1,5 @@
 {
-  "name": "zendesk-mock-server",
+  "name": "zendesk-analyzer-server",
   "version": "1.0.0",
   "description": "Mock Zendesk API server for development",
   "main": "server.js",
