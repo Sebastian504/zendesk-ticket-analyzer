@@ -71,10 +71,15 @@
         <span class="toggle-icon">▼</span>
       </h2>
       <div id="prompt-content" class="collapsible-content">
-        <label for="classification-prompt">Classification Prompt</label>
-        <textarea id="classification-prompt" rows="8" placeholder="Enter your classification prompt..."></textarea>
+        <label for="classification-prompt">Classification Prompt (per ticket)</label>
+        <textarea id="classification-prompt" rows="10" placeholder="Enter your classification prompt..."></textarea>
         <p class="hint">Use {{ticket_subject}}, {{ticket_description}}, and {{ticket_comments}} as placeholders.</p>
         <button id="reset-prompt-btn" class="btn btn-secondary">Reset to Default</button>
+        
+        <label for="summary-prompt" style="margin-top: 20px;">Summary Prompt (after all tickets classified)</label>
+        <textarea id="summary-prompt" rows="8" placeholder="Enter your summary prompt..."></textarea>
+        <p class="hint">Use {{ticket_summaries}} as placeholder. This runs after classification to identify top content topics.</p>
+        <button id="reset-summary-prompt-btn" class="btn btn-secondary">Reset to Default</button>
       </div>
     </section>
 
@@ -105,10 +110,17 @@
           <div id="classification-legend" class="chart-legend"></div>
         </div>
         <div class="analytics-card">
-          <h3>Topics</h3>
-          <div id="topics-list" class="topics-list"></div>
+          <h3>Ticket Types</h3>
+          <div id="ticket-types-list" class="topics-list"></div>
         </div>
       </div>
+    </section>
+
+    <!-- Content Topics Summary -->
+    <section id="topics-summary-section" class="card hidden">
+      <h2>Content Topics Summary</h2>
+      <p class="hint">Top topics customers are discussing, generated after ticket classification.</p>
+      <div id="topics-summary-content" class="topics-summary-content"></div>
     </section>
 
     <!-- Tickets List -->
@@ -122,8 +134,8 @@
           <option value="neutral">Neutral</option>
           <option value="negative">Negative</option>
         </select>
-        <select id="topic-filter">
-          <option value="">All Topics</option>
+        <select id="ticket-type-filter">
+          <option value="">All Ticket Types</option>
         </select>
       </div>
       <div id="tickets-list" class="tickets-list"></div>

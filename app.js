@@ -8,7 +8,9 @@ const LLM_RATE_LIMIT = 5; // requests per second
 const STORAGE_KEYS = {
   CONFIG: 'zendeskAnalyzer_config',
   TICKETS: 'zendeskAnalyzer_tickets',
-  PROMPT: 'zendeskAnalyzer_prompt'
+  PROMPT: 'zendeskAnalyzer_prompt',
+  SUMMARY_PROMPT: 'zendeskAnalyzer_summaryPrompt',
+  TOPICS_SUMMARY: 'zendeskAnalyzer_topicsSummary'
 };
 
 const DEFAULT_CLASSIFICATION_PROMPT = `Analyze the following support ticket and classify it.
@@ -22,13 +24,28 @@ COMMENTS:
 {{ticket_comments}}
 
 Please respond with a JSON object containing:
-1. "topics": An array of 1-3 topic labels that best describe this ticket (e.g., "Bug Report", "Feature Request", "Billing", "Technical Support", "Onboarding", "UI/UX", "Performance")
+1. "ticket_types": An array of 1-3 ticket type labels (e.g., "Bug Report", "Feature Request", "Billing", "Technical Support", "Onboarding", "UI/UX", "Performance")
 2. "sentiment": One of "positive", "negative", or "neutral" based on the overall customer sentiment
+3. "summary": A single sentence summarizing what the customer is asking about or reporting
 
 Respond ONLY with the JSON object, no additional text.
 
 Example response:
-{"topics": ["Bug Report", "Performance"], "sentiment": "negative"}`;
+{"ticket_types": ["Bug Report", "Performance"], "sentiment": "negative", "summary": "Customer reports slow loading times on the dashboard after recent update."}`;
+
+const DEFAULT_SUMMARY_PROMPT = `Based on the following ticket summaries, identify the 10 most important content topics that customers are discussing. Group related issues together and provide actionable insights.
+
+TICKET SUMMARIES:
+{{ticket_summaries}}
+
+Respond with a JSON object containing an array of topics, each with:
+1. "topic": A clear, descriptive name for the content topic
+2. "description": A 1-2 sentence description of what customers are saying about this topic
+3. "ticket_ids": Array of ticket IDs that relate to this topic
+4. "priority": "high", "medium", or "low" based on frequency and customer sentiment
+
+Example response:
+{"topics": [{"topic": "Dashboard Performance Issues", "description": "Multiple customers reporting slow load times and timeouts on the main dashboard.", "ticket_ids": [1, 5, 12], "priority": "high"}]}`;
 
 // State
 let tickets = [];
@@ -50,6 +67,8 @@ const elements = {
   // Prompts
   classificationPrompt: document.getElementById('classification-prompt'),
   resetPromptBtn: document.getElementById('reset-prompt-btn'),
+  summaryPrompt: document.getElementById('summary-prompt'),
+  resetSummaryPromptBtn: document.getElementById('reset-summary-prompt-btn'),
   
   // Actions
   fetchTicketsBtn: document.getElementById('fetch-tickets-btn'),
@@ -64,14 +83,18 @@ const elements = {
   analyticsSection: document.getElementById('analytics-section'),
   classificationChart: document.getElementById('classification-chart'),
   classificationLegend: document.getElementById('classification-legend'),
-  topicsList: document.getElementById('topics-list'),
+  ticketTypesList: document.getElementById('ticket-types-list'),
+  
+  // Topics Summary
+  topicsSummarySection: document.getElementById('topics-summary-section'),
+  topicsSummaryContent: document.getElementById('topics-summary-content'),
   
   // Tickets
   ticketsSection: document.getElementById('tickets-section'),
   ticketsCount: document.getElementById('tickets-count'),
   searchInput: document.getElementById('search-input'),
   classificationFilter: document.getElementById('classification-filter'),
-  topicFilter: document.getElementById('topic-filter'),
+  ticketTypeFilter: document.getElementById('ticket-type-filter'),
   ticketsList: document.getElementById('tickets-list'),
   
   // Modal
@@ -99,6 +122,8 @@ function setupEventListeners() {
   // Prompts
   elements.resetPromptBtn.addEventListener('click', resetPrompt);
   elements.classificationPrompt.addEventListener('change', savePrompt);
+  elements.resetSummaryPromptBtn.addEventListener('click', resetSummaryPrompt);
+  elements.summaryPrompt.addEventListener('change', saveSummaryPrompt);
   
   // Actions
   elements.fetchTicketsBtn.addEventListener('click', fetchTickets);
@@ -108,7 +133,7 @@ function setupEventListeners() {
   // Filters
   elements.searchInput.addEventListener('input', debounce(renderTicketsList, 300));
   elements.classificationFilter.addEventListener('change', renderTicketsList);
-  elements.topicFilter.addEventListener('change', renderTicketsList);
+  elements.ticketTypeFilter.addEventListener('change', renderTicketsList);
   
   // Modal
   elements.modalClose.addEventListener('click', closeModal);
@@ -155,18 +180,31 @@ function saveConfig() {
 
 // Prompt management
 function loadPrompt() {
-  const saved = localStorage.getItem(STORAGE_KEYS.PROMPT);
-  elements.classificationPrompt.value = saved || DEFAULT_CLASSIFICATION_PROMPT;
+  const savedClassification = localStorage.getItem(STORAGE_KEYS.PROMPT);
+  elements.classificationPrompt.value = savedClassification || DEFAULT_CLASSIFICATION_PROMPT;
+  
+  const savedSummary = localStorage.getItem(STORAGE_KEYS.SUMMARY_PROMPT);
+  elements.summaryPrompt.value = savedSummary || DEFAULT_SUMMARY_PROMPT;
 }
 
 function savePrompt() {
   localStorage.setItem(STORAGE_KEYS.PROMPT, elements.classificationPrompt.value);
 }
 
+function saveSummaryPrompt() {
+  localStorage.setItem(STORAGE_KEYS.SUMMARY_PROMPT, elements.summaryPrompt.value);
+}
+
 function resetPrompt() {
   elements.classificationPrompt.value = DEFAULT_CLASSIFICATION_PROMPT;
   savePrompt();
-  showStatus(elements.configStatus, 'Prompt reset to default', 'success');
+  showStatus(elements.configStatus, 'Classification prompt reset to default', 'success');
+}
+
+function resetSummaryPrompt() {
+  elements.summaryPrompt.value = DEFAULT_SUMMARY_PROMPT;
+  saveSummaryPrompt();
+  showStatus(elements.configStatus, 'Summary prompt reset to default', 'success');
 }
 
 // Tickets storage
@@ -340,14 +378,22 @@ async function classifyAllTickets() {
   saveTickets();
   updateUI();
   
+  // Now run the summary prompt to identify content topics
+  if (classified > 0) {
+    showStatus(elements.actionStatus, `<span class="loading"></span>Generating content topics summary...`, 'info');
+    try {
+      await generateTopicsSummary();
+      showStatus(elements.actionStatus, `Classified ${classified} tickets and generated topics summary.${errors > 0 ? ` ${errors} failed.` : ''}`, 'success');
+    } catch (summaryError) {
+      console.error('Failed to generate topics summary:', summaryError);
+      showStatus(elements.actionStatus, `Classified ${classified} tickets. Summary generation failed: ${summaryError.message}`, 'info');
+    }
+  } else if (errors > 0) {
+    showStatus(elements.actionStatus, `Classification failed for all ${errors} tickets.`, 'error');
+  }
+  
   elements.progressContainer.classList.add('hidden');
   elements.classifyBtn.disabled = false;
-  
-  if (errors > 0) {
-    showStatus(elements.actionStatus, `Classified ${classified} tickets. ${errors} failed.`, 'info');
-  } else {
-    showStatus(elements.actionStatus, `Successfully classified all ${classified} tickets`, 'success');
-  }
 }
 
 async function classifyTicket(ticket, promptTemplate) {
@@ -406,7 +452,67 @@ async function classifyTicket(ticket, promptTemplate) {
     throw new Error('No JSON found in response');
   } catch (e) {
     console.warn('Failed to parse LLM response:', content);
-    return { topics: ['Unknown'], sentiment: 'neutral' };
+    return { ticket_types: ['Unknown'], sentiment: 'neutral', summary: 'Unable to parse response' };
+  }
+}
+
+// Generate topics summary from all classified tickets
+async function generateTopicsSummary() {
+  const classifiedTickets = tickets.filter(t => t.classification?.summary);
+  
+  if (classifiedTickets.length === 0) {
+    console.log('No classified tickets with summaries to summarize');
+    return;
+  }
+  
+  // Build ticket summaries text
+  const ticketSummaries = classifiedTickets.map(t => 
+    `[Ticket #${t.id}] ${t.classification.summary} (Sentiment: ${t.classification.sentiment}, Types: ${(t.classification.ticket_types || []).join(', ')})`
+  ).join('\n');
+  
+  const promptTemplate = elements.summaryPrompt.value || DEFAULT_SUMMARY_PROMPT;
+  const prompt = promptTemplate.replace('{{ticket_summaries}}', ticketSummaries);
+  
+  console.log('Generating topics summary...');
+  
+  const requestBody = {
+    model: config.llmModel || undefined,
+    messages: [
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.3
+  };
+  
+  const response = await fetch(config.llmEndpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.llmApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`LLM API error: ${response.status} - ${errorText.substring(0, 100)}`);
+  }
+  
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || data.content || '';
+  
+  // Parse JSON response
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const summary = JSON.parse(jsonMatch[0]);
+      localStorage.setItem(STORAGE_KEYS.TOPICS_SUMMARY, JSON.stringify(summary));
+      renderTopicsSummary(summary);
+      return summary;
+    }
+    throw new Error('No JSON found in response');
+  } catch (e) {
+    console.warn('Failed to parse topics summary response:', content);
+    throw e;
   }
 }
 
@@ -424,22 +530,34 @@ function updateUI() {
   if (hasTickets) {
     renderAnalytics();
     renderTicketsList();
-    updateTopicFilter();
+    updateTicketTypeFilter();
+    
+    // Load and render saved topics summary if exists
+    const savedSummary = localStorage.getItem(STORAGE_KEYS.TOPICS_SUMMARY);
+    if (savedSummary) {
+      try {
+        renderTopicsSummary(JSON.parse(savedSummary));
+      } catch (e) {
+        console.warn('Failed to parse saved topics summary');
+      }
+    }
   }
 }
 
 function renderAnalytics() {
   // Count classifications
   const classifications = { positive: 0, neutral: 0, negative: 0, unclassified: 0 };
-  const topicsMap = {};
+  const ticketTypesMap = {};
   
   tickets.forEach(ticket => {
     if (ticket.classification) {
       const classificationValue = ticket.classification.sentiment || 'neutral';
       classifications[classificationValue] = (classifications[classificationValue] || 0) + 1;
       
-      (ticket.classification.topics || []).forEach(topic => {
-        topicsMap[topic] = (topicsMap[topic] || 0) + 1;
+      // Support both old 'topics' and new 'ticket_types' field
+      const types = ticket.classification.ticket_types || ticket.classification.topics || [];
+      types.forEach(type => {
+        ticketTypesMap[type] = (ticketTypesMap[type] || 0) + 1;
       });
     } else {
       classifications.unclassified++;
@@ -462,49 +580,90 @@ function renderAnalytics() {
     ${classifications.unclassified > 0 ? `<div class="legend-item"><span class="legend-color unclassified"></span> Unclassified (${classifications.unclassified})</div>` : ''}
   `;
   
-  // Render topics list
-  const sortedTopics = Object.entries(topicsMap).sort((a, b) => b[1] - a[1]);
-  elements.topicsList.innerHTML = sortedTopics.length > 0
-    ? sortedTopics.map(([topic, count]) => `
-        <div class="topic-item" data-topic="${escapeHtml(topic)}">
-          <span class="topic-name">${escapeHtml(topic)}</span>
+  // Render ticket types list
+  const sortedTypes = Object.entries(ticketTypesMap).sort((a, b) => b[1] - a[1]);
+  elements.ticketTypesList.innerHTML = sortedTypes.length > 0
+    ? sortedTypes.map(([type, count]) => `
+        <div class="topic-item" data-type="${escapeHtml(type)}">
+          <span class="topic-name">${escapeHtml(type)}</span>
           <span class="topic-count">${count}</span>
         </div>
       `).join('')
-    : '<div class="empty-state"><p>No topics yet. Classify tickets to see topics.</p></div>';
+    : '<div class="empty-state"><p>No ticket types yet. Classify tickets to see types.</p></div>';
   
-  // Add click handlers to topics
-  elements.topicsList.querySelectorAll('.topic-item').forEach(el => {
+  // Add click handlers to ticket types
+  elements.ticketTypesList.querySelectorAll('.topic-item').forEach(el => {
     el.addEventListener('click', () => {
-      elements.topicFilter.value = el.dataset.topic;
+      elements.ticketTypeFilter.value = el.dataset.type;
       renderTicketsList();
     });
   });
 }
 
-function updateTopicFilter() {
-  const topics = new Set();
+// Render topics summary section
+function renderTopicsSummary(summary) {
+  if (!summary || !summary.topics || summary.topics.length === 0) {
+    elements.topicsSummarySection.classList.add('hidden');
+    return;
+  }
+  
+  elements.topicsSummarySection.classList.remove('hidden');
+  
+  const priorityColors = {
+    high: '#dc3545',
+    medium: '#ffc107',
+    low: '#28a745'
+  };
+  
+  elements.topicsSummaryContent.innerHTML = summary.topics.map((topic, index) => `
+    <div class="topic-summary-item">
+      <div class="topic-summary-header">
+        <span class="topic-summary-rank">#${index + 1}</span>
+        <span class="topic-summary-name">${escapeHtml(topic.topic)}</span>
+        <span class="topic-summary-priority" style="background-color: ${priorityColors[topic.priority] || '#6c757d'}">${topic.priority || 'unknown'}</span>
+      </div>
+      <p class="topic-summary-description">${escapeHtml(topic.description)}</p>
+      <div class="topic-summary-tickets">
+        <strong>Related tickets:</strong> 
+        ${(topic.ticket_ids || []).map(id => `<a href="#" class="ticket-link" data-ticket-id="${id}">#${id}</a>`).join(', ')}
+      </div>
+    </div>
+  `).join('');
+  
+  // Add click handlers to ticket links
+  elements.topicsSummaryContent.querySelectorAll('.ticket-link').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      const ticketId = parseInt(el.dataset.ticketId);
+      showTicketDetail(ticketId);
+    });
+  });
+}
+
+function updateTicketTypeFilter() {
+  const ticketTypes = new Set();
   tickets.forEach(ticket => {
-    (ticket.classification?.topics || []).forEach(topic => topics.add(topic));
+    const types = ticket.classification?.ticket_types || ticket.classification?.topics || [];
+    types.forEach(type => ticketTypes.add(type));
   });
   
-  const currentValue = elements.topicFilter.value;
-  elements.topicFilter.innerHTML = '<option value="">All Topics</option>' +
-    Array.from(topics).sort().map(topic => 
-      `<option value="${escapeHtml(topic)}">${escapeHtml(topic)}</option>`
+  const currentValue = elements.ticketTypeFilter.value;
+  elements.ticketTypeFilter.innerHTML = '<option value="">All Ticket Types</option>' +
+    Array.from(ticketTypes).sort().map(type => 
+      `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`
     ).join('');
-  elements.topicFilter.value = currentValue;
+  elements.ticketTypeFilter.value = currentValue;
 }
 
 function renderTicketsList() {
   const searchTerm = elements.searchInput.value.toLowerCase();
   const classificationFilterValue = elements.classificationFilter.value;
-  const topicFilter = elements.topicFilter.value;
+  const ticketTypeFilterValue = elements.ticketTypeFilter.value;
   
   const filtered = tickets.filter(ticket => {
     // Search filter
     if (searchTerm) {
-      const searchable = `${ticket.subject} ${ticket.description}`.toLowerCase();
+      const searchable = `${ticket.subject} ${ticket.description} ${ticket.classification?.summary || ''}`.toLowerCase();
       if (!searchable.includes(searchTerm)) return false;
     }
     
@@ -514,10 +673,10 @@ function renderTicketsList() {
       if (classificationVal !== classificationFilterValue) return false;
     }
     
-    // Topic filter
-    if (topicFilter) {
-      const topics = ticket.classification?.topics || [];
-      if (!topics.includes(topicFilter)) return false;
+    // Ticket type filter
+    if (ticketTypeFilterValue) {
+      const types = ticket.classification?.ticket_types || ticket.classification?.topics || [];
+      if (!types.includes(ticketTypeFilterValue)) return false;
     }
     
     return true;
@@ -532,7 +691,8 @@ function renderTicketsList() {
   
   elements.ticketsList.innerHTML = filtered.map(ticket => {
     const classificationVal = ticket.classification?.sentiment || '';
-    const topics = ticket.classification?.topics || [];
+    const ticketTypes = ticket.classification?.ticket_types || ticket.classification?.topics || [];
+    const summary = ticket.classification?.summary || '';
     
     return `
       <div class="ticket-card ${classificationVal}" data-ticket-id="${ticket.id}">
@@ -544,10 +704,10 @@ function renderTicketsList() {
           <span>Status: ${ticket.status}</span>
           <span>Created: ${formatDate(ticket.created_at)}</span>
         </div>
-        <div class="ticket-description">${escapeHtml(ticket.description)}</div>
+        ${summary ? `<div class="ticket-summary">${escapeHtml(summary)}</div>` : `<div class="ticket-description">${escapeHtml(ticket.description)}</div>`}
         <div class="ticket-tags">
           ${classificationVal ? `<span class="ticket-tag classification ${classificationVal}">${classificationVal}</span>` : ''}
-          ${topics.map(t => `<span class="ticket-tag">${escapeHtml(t)}</span>`).join('')}
+          ${ticketTypes.map(t => `<span class="ticket-tag">${escapeHtml(t)}</span>`).join('')}
         </div>
       </div>
     `;
@@ -567,7 +727,8 @@ function showTicketDetail(ticketId) {
   if (!ticket) return;
   
   const classificationVal = ticket.classification?.sentiment || 'unclassified';
-  const topics = ticket.classification?.topics || [];
+  const ticketTypes = ticket.classification?.ticket_types || ticket.classification?.topics || [];
+  const summary = ticket.classification?.summary || '';
   
   elements.ticketDetail.innerHTML = `
     <h2>${escapeHtml(ticket.subject)}</h2>
@@ -584,15 +745,16 @@ function showTicketDetail(ticketId) {
     
     ${ticket.classification ? `
       <div class="detail-section">
-        <h3>Classification</h3>
+        <h3>Analysis</h3>
+        ${summary ? `<p class="ticket-summary-detail"><strong>Summary:</strong> ${escapeHtml(summary)}</p>` : ''}
         <div class="classification-result">
           <div class="classification-item">
-            <strong>Classification</strong>
+            <strong>Sentiment</strong>
             <span class="ticket-tag classification ${classificationVal}">${classificationVal}</span>
           </div>
           <div class="classification-item">
-            <strong>Topics</strong>
-            ${topics.map(t => `<span class="ticket-tag">${escapeHtml(t)}</span>`).join(' ')}
+            <strong>Ticket Types</strong>
+            ${ticketTypes.map(t => `<span class="ticket-tag">${escapeHtml(t)}</span>`).join(' ')}
           </div>
         </div>
       </div>

@@ -502,6 +502,90 @@ textarea {
   color: #721c24;
 }
 
+/* Ticket Summary */
+.ticket-summary {
+  font-size: 14px;
+  color: #333;
+  font-style: italic;
+  margin-bottom: 8px;
+  padding: 8px;
+  background: #f0f7ff;
+  border-radius: 4px;
+  border-left: 3px solid #4a90d9;
+}
+
+.ticket-summary-detail {
+  margin-bottom: 12px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+/* Topics Summary Section */
+.topics-summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.topic-summary-item {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 4px solid #4a90d9;
+}
+
+.topic-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.topic-summary-rank {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+}
+
+.topic-summary-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+  flex: 1;
+}
+
+.topic-summary-priority {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+  text-transform: uppercase;
+}
+
+.topic-summary-description {
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.topic-summary-tickets {
+  font-size: 13px;
+  color: #666;
+}
+
+.topic-summary-tickets a.ticket-link {
+  color: #4a90d9;
+  text-decoration: none;
+  margin-right: 4px;
+}
+
+.topic-summary-tickets a.ticket-link:hover {
+  text-decoration: underline;
+}
+
 /* Modal */
 .modal {
   position: fixed;
